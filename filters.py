@@ -3,14 +3,22 @@ import streamlit as st
 
 @st.cache_data
 def load_data():
-    # Load the highly compressed Parquet file instead of the massive CSV
+    # Only load the exact columns the dashboard actually uses (ignores useless ID codes)
+    cols_to_keep = ['Area', 'Item', 'Element', 'Unit', 'Year', 'Production_Value']
+    
     try:
-        df = pd.read_parquet("data/cleaned_data.parquet")
+        df = pd.read_parquet("data/cleaned_data.parquet", columns=cols_to_keep)
     except FileNotFoundError:
-        df = pd.read_parquet("../data/cleaned_data.parquet")
+        df = pd.read_parquet("../data/cleaned_data.parquet", columns=cols_to_keep)
+        
+    # CRITICAL MEMORY FIX: Convert repeating text into 'categories' to save ~80% RAM
+    for col in ['Area', 'Item', 'Element', 'Unit']:
+        df[col] = df[col].astype('category')
+        
+    # Downcast the Year column to a smaller integer size
+    df['Year'] = pd.to_numeric(df['Year'], downcast='integer')
+        
     return df
-
-# ... keep your apply_filters function exactly the same below this!
 
 def apply_filters(df, year_range, areas, element, prod_range, search):
     filtered = df.copy()
@@ -22,7 +30,7 @@ def apply_filters(df, year_range, areas, element, prod_range, search):
     if areas:
         filtered = filtered[filtered['Area'].isin(areas)]
     else:
-        filtered = filtered[filtered['Area'].isin([])] # Empty if nothing selected
+        filtered = filtered[filtered['Area'].isin([])] 
 
     # 3. Single Category Filter (Element type)
     if element != 'All':
